@@ -2,7 +2,9 @@ package com.example.User.DB.UserController;
 
 
 import com.example.User.DB.CorsConfig;
+import com.example.User.DB.DTO.UserDto;
 import com.example.User.DB.Entity.User;
+import com.example.User.DB.Exception.UserAlreadyExistsException;
 import com.example.User.DB.Exception.UserNotFound;
 import com.example.User.DB.LoginRequest;
 import com.example.User.DB.UserRepository.Repository;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
@@ -24,6 +27,7 @@ public class Controller {
     private CorsConfig corsConfig;
     @Autowired
     Repository repo;
+
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/allUsers")
     public ResponseEntity<?> getAllUsers() throws UserNotFound {
@@ -36,10 +40,10 @@ public class Controller {
     }
     @PostMapping("/login")
     public ResponseEntity<String> loginUser(@RequestBody LoginRequest loginRequest) throws UserNotFound {
-        String userName = loginRequest.getUserName();
+        String email = loginRequest.getEmail();
         String password = loginRequest.getPassword();
 
-        boolean isAuthenticated = service.authenticateUser(userName, password);
+        boolean isAuthenticated = service.authenticateUser(email, password);
 
         if (isAuthenticated) {
             // Return a success response
@@ -48,18 +52,26 @@ public class Controller {
             throw new UserNotFound("Invalid credentials");
         }
     }
-    @PreAuthorize("isAuthenticated()")
     @PostMapping("/addUser")
-    public ResponseEntity<?> saveUser(@RequestBody User user) throws UserNotFound {
-        Optional<User> opt = repo.findByUsername(user.getUserName());
-        if (opt.isPresent()) {
-            throw new UserNotFound("User is already existed");
-        } else {
-            service.saveUser(user);
-            return new ResponseEntity<>("user is created", HttpStatus.CREATED);
-        }
 
+
+
+    public ResponseEntity<?> saveUser(@RequestBody UserDto userDto) {
+        try {
+            Optional<User> opt = repo.findByEmail(userDto.getEmail());
+            if (opt.isPresent()) {
+                throw new UserAlreadyExistsException("User is already existed");
+            } else {
+                service.saveUser(userDto);
+
+                return new ResponseEntity<>("User is created", HttpStatus.CREATED);
+            }
+        } catch (Exception e) {
+            return new ResponseEntity<>("An error occurred: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
+
+
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/user/{id}")
     public ResponseEntity<User> getUser(@PathVariable Integer id) throws UserNotFound {
@@ -72,17 +84,19 @@ public class Controller {
             throw new UserNotFound("User not found");
         }
     }
-    @PreAuthorize("isAuthenticated()")
-    @PutMapping("/updateUser/{id}")
-    public ResponseEntity<?> UpdateUser(@RequestBody User user) throws UserNotFound {
-        if (repo.existsById(user.getId())) {
-            service.updateUser(user);
-            return new ResponseEntity<>("id" + user.getId() + "is updated successfully", HttpStatus.ACCEPTED);
-        } else {
 
-            throw new UserNotFound("id" + user.getId() + "is not updated");
-        }
-    }
+
+
+
+
+   @PreAuthorize("isAuthenticated()")
+    @PutMapping ("/{id}")
+   public ResponseEntity<?> updateUser(@RequestBody UserDto userDto ,@PathVariable("id") int id)  {
+      UserDto updatedUser=this.service.updateUser(userDto, id);
+      return new ResponseEntity<UserDto>(updatedUser,HttpStatus.OK);
+   }
+
+
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable("id") int id) throws UserNotFound {
@@ -94,5 +108,6 @@ public class Controller {
             throw new UserNotFound("id" + "is not found");
         }
     }
+
 
 }
